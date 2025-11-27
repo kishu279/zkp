@@ -1,0 +1,55 @@
+// CODE -> SumProduct.circom
+pragma circom 2.0.0;
+
+template SumProduct(){
+
+    // Inputs
+    signal input a;
+    signal input b;
+
+    // Outputs
+    signal output sum;
+    signal output product;
+
+    // Constraints 
+    sum <== a + b;
+    product <== a * b;
+}
+
+component main = SumProduct();
+
+// BASH -> This generates three artifacts
+circom sumproduct.circom --r1cs --wasm --sym
+
+
+// JSON -> input.json
+{
+    "a": 4,
+    "b": 5
+}
+
+// BASH -> Witness generation command
+node sumproduct_js/generate_witness.js sum_product_js/sum_product.wasm input.json witness.wtns
+
+// BASH -> This generates the proof  Trusted setup: Powers of Tau + Groth16
+snarkjs powersoftau new bn128 12 pot12_0000.ptau
+snarkjs powersoftau contribute pot12_0000.ptau pot12_0001.ptau
+
+// ERROR :- TAU NOT PREPARED => fix this by running the below command
+snarkjs powersoftau prepare phase2 pot12_0001.ptau pot12_final.ptau -v
+
+// VERIFY THE FINAL FILE 
+snarkjs powersoftau verify pot12_final.ptau
+
+// CONTINUE WITH THE BELOW COMMANDS
+snarkjs groth16 setup sum_product.r1cs pot12_final.ptau circuit_0000.zkey
+snarkjs zkey export verificationkey circuit_0000.zkey verification_key.json
+
+// GENERATING THE PROOF
+snarkjs groth16 prove circuit_0000.zkey witness.wtns proof.json public.json
+
+// VERIFYING THE PROOF
+snarkjs groth16 verify verification_key.json public.json proof.json
+
+// TO DEPLOY THE CONTRACT
+snarkjs zkey export solidityverifier circuit_final.zkey verifier.sol
